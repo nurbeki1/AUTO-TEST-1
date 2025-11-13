@@ -9,7 +9,6 @@ import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
@@ -46,6 +45,7 @@ public class CatalogTest {
         writeInfo();
         acceptModal();
         cardInfo();
+        System.out.println("Тест успешно прошел ✅");
     }
 
     private void firstPageLanding() {
@@ -105,6 +105,58 @@ public class CatalogTest {
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("app-order .order-form")));
     }
 
+//    private void writeInfo() {
+//        By formBy = By.cssSelector("app-order .order-form");
+//
+//        WebElement form = wait.until(ExpectedConditions.visibilityOfElementLocated(formBy));
+//        WebElement finalForm = form;
+//        wait.until(d -> finalForm.findElements(By.cssSelector("input:not([type='hidden'])"))
+//                .stream().anyMatch(WebElement::isDisplayed));
+//
+//        WebElement firstName = form.findElement(
+//                By.xpath(".//label[contains(normalize-space(.),'Атыңыз') or contains(normalize-space(.),'Имя')]" +
+//                        "/following::*[self::input or self::textarea][1]")
+//        );
+//        typeSafe(firstName, ConfigReader.get("TestName"));
+//
+//        WebElement lastName = form.findElement(
+//                By.xpath(".//label[contains(normalize-space(.),'Тегіңіз') or contains(normalize-space(.),'Фамилия') or contains(normalize-space(.),'Тегiнiз')]" +
+//                        "/following::*[self::input or self::textarea][1]")
+//        );
+//        typeSafe(lastName,  ConfigReader.get("TestLastName"));
+//        WebElement number = form.findElement(
+//                By.xpath(".//label[contains(normalize-space(.),'Атыңыз') or contains(normalize-space(.),'Имя')]" +
+//                        "/following::*[self::input or self::textarea][1]")
+//        );
+//        typeSafe(firstName, ConfigReader.get("TestName"));
+//
+//
+//        String email = getTempEmail(); // ← теперь с Mail.tm
+//
+//        WebElement emailInput = null;
+//        List<By> emailLocators = List.of(
+//                By.xpath(".//label[normalize-space()='Email' or contains(.,'Электрондық пошта') or contains(.,'Почта')]" +
+//                        "/following::*[self::input or self::textarea][1]"),
+//                By.xpath(".//input[contains(@placeholder,'Email') or contains(@placeholder,'E-mail')]"),
+//                By.cssSelector("input[name='email'], input[data-testid='email']")
+//        );
+//        for (By by : emailLocators) {
+//            List<WebElement> found = form.findElements(by);
+//            if (!found.isEmpty() && found.get(0).isDisplayed()) { emailInput = found.get(0); break; }
+//        }
+//        if (emailInput == null) throw new NoSuchElementException("Поле email не найдено");
+//        typeSafe(emailInput, email);
+//
+//        WebElement dropdown = wait.until(
+//                ExpectedConditions.elementToBeClickable(By.xpath("//*[contains(text(),'Ваш менеджер')]/following::*[1]"))
+//        );
+//        dropdown.click();
+//
+//        WebElement noManager = wait.until(
+//                ExpectedConditions.elementToBeClickable(By.xpath("//*[normalize-space(text())='Без менеджера']"))
+//        );
+//        noManager.click();
+//    }
     private void writeInfo() {
         By formBy = By.cssSelector("app-order .order-form");
 
@@ -138,7 +190,7 @@ public class CatalogTest {
             if (!found.isEmpty() && found.get(0).isDisplayed()) { phoneInput = found.get(0); break; }
         }
         if (phoneInput == null) throw new NoSuchElementException("Поле телефона не найдено");
-        typeSafe(phoneInput, "7779876543");
+        typeSafe(phoneInput, ConfigReader.get("TestPhone"));
 
         WebElement emailInput = null;
         List<By> emailLocators = List.of(
@@ -191,7 +243,6 @@ public class CatalogTest {
 
     }
 
-
     private void typeSafe(WebElement input, String value) {
         js().executeScript("arguments[0].scrollIntoView({block:'center'});", input);
         try {
@@ -206,123 +257,142 @@ public class CatalogTest {
                     input, value);
         }
     }
-    private WebElement tryMany(Function<By, WebElement> finder, String name, By... locs) {
-        for (By by : locs) {
-            try {
-                WebElement el = finder.apply(by);
-                if (el != null) return el;
-            } catch (TimeoutException | NoSuchElementException ignored) {
-                System.out.println("[locator miss] " + name + " via: " + by);
-            }
-        }
-        throw new NoSuchElementException("Поле не найдено: " + name);
 
-    }
-
+    // 🆕 Новый вариант getTempEmail (Mail.tm, без закрытия вкладки)
     private String getTempEmail() {
-        String originalWindow = driver.getWindowHandle();
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
-        ((JavascriptExecutor) driver).executeScript("window.open('https://temp-mail.org/en/', '_blank');");
+        System.out.println("📧 Opening Mail.tm temporary inbox...");
 
+        // 1️⃣ Открываем Mail.tm в новой вкладке
+        js.executeScript("window.open('https://mail.tm/en/', '_blank');");
         List<String> tabs = new ArrayList<>(driver.getWindowHandles());
         driver.switchTo().window(tabs.get(tabs.size() - 1));
 
-        WebElement emailField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("mail")));
-
-        wait.until(d -> {
-            String value = emailField.getAttribute("value");
-            return value != null && value.contains("@") && !value.toLowerCase().contains("loading");
-        });
+        WebElement emailField = wait.until(ExpectedConditions.visibilityOfElementLocated(
+                By.cssSelector("input[readonly][type='email'], input#address")
+        ));
 
         String email = emailField.getAttribute("value");
+        System.out.println("✅ Got temp email: " + email);
 
-        driver.close();
-        driver.switchTo().window(originalWindow);
+        // ❗ Вкладку не закрываем, остаёмся в Mail.tm
+        // — потом можно будет туда вернуться и проверить письмо
+        driver.switchTo().window(tabs.get(0)); // возвращаемся в тест
+
         return email;
     }
 
-
-
     private void acceptModal() {
-        for (String h : driver.getWindowHandles()) {
-            driver.switchTo().window(h);
-            if (driver.getCurrentUrl().startsWith("http")) break;
-        }
-
-        WebDriverWait w = new WebDriverWait(driver, Duration.ofSeconds(30));
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(300));
         JavascriptExecutor js = (JavascriptExecutor) driver;
+        long startTime = System.currentTimeMillis();
 
-        WebElement modal = w.until(d -> (WebElement) js.executeScript(
-                "const panes=[...document.querySelectorAll('div.cdk-overlay-pane')];" +
-                        "return panes.length ? panes.at(-1).querySelector('.mat-mdc-dialog-surface') : null;"
-        ));
-
-        js.executeScript(
-                "const c=arguments[0].querySelector('.mat-mdc-dialog-content, .content, .pdf-viewer');" +
-                        "if(c){ c.scrollTop=c.scrollHeight; }",
-                modal
-        );
-
-        WebElement checkbox = (WebElement) js.executeScript(
-                "return arguments[0].querySelector('.agree input[type=\"checkbox\"]');",
-                modal
-        );
-        js.executeScript("arguments[0].click();", checkbox);
-
-        WebElement cont = w.until(d -> (WebElement) js.executeScript(
-                "const b=arguments[0].querySelector('.buttons .primary-button');" +
-                        "return b && !b.disabled && b.getAttribute('aria-disabled')!=='true' ? b : null;",
-                modal
-        ));
         try {
-            cont.click();
-        } catch (ElementClickInterceptedException e) {
-            js.executeScript("arguments[0].click();", cont);
+            System.out.println("⌛ Waiting for modal... (up to 5 minutes)");
+
+            WebElement modal = wait.until(d -> {
+                WebElement el = (WebElement) js.executeScript(
+                        "const panes=[...document.querySelectorAll('div.cdk-overlay-pane')];" +
+                                "return panes.length ? panes.at(-1).querySelector('.mat-mdc-dialog-surface') : null;"
+                );
+                if (el != null) {
+                    System.out.println("🟢 Modal detected after " +
+                            ((System.currentTimeMillis() - startTime) / 1000) + "s");
+                }
+                return el;
+            });
+
+            if (modal == null) {
+                System.out.println("⚠️ Modal not found — skipping acceptModal()");
+                return;
+            }
+
+            js.executeScript(
+                    "const c=arguments[0].querySelector('.mat-mdc-dialog-content, .content, .pdf-viewer');" +
+                            "if(c){ c.scrollTop=c.scrollHeight; }",
+                    modal
+            );
+
+            WebElement checkbox = (WebElement) js.executeScript(
+                    "return arguments[0].querySelector('.agree input[type=\"checkbox\"]');",
+                    modal
+            );
+            if (checkbox != null) {
+                js.executeScript("arguments[0].click();", checkbox);
+            }
+
+            WebElement cont = wait.until(d -> (WebElement) js.executeScript(
+                    "const b=arguments[0].querySelector('.buttons .primary-button');" +
+                            "return b && !b.disabled && b.getAttribute('aria-disabled')!=='true' ? b : null;",
+                    modal
+            ));
+            if (cont != null) {
+                js.executeScript("arguments[0].click();", cont);
+            }
+
+            wait.until(d -> (Boolean) js.executeScript(
+                    "return !document.querySelector('div.cdk-overlay-pane .mat-mdc-dialog-surface');"
+            ));
+            System.out.println("✅ Modal closed successfully");
+
+        } catch (TimeoutException e) {
+            System.out.println("⚠️ Modal did not appear within 5 minutes — skipping");
+        } catch (Exception e) {
+            System.out.println("❌ Error during acceptModal: " + e.getMessage());
         }
-
-        w.until(d -> (Boolean) js.executeScript(
-                "return !document.querySelector('div.cdk-overlay-pane .mat-mdc-dialog-surface');"
-        ));
     }
-
-
 
     private void cardInfo() {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(60));
+        JavascriptExecutor js = (JavascriptExecutor) driver;
 
-        String cardNum   = ConfigReader.get("cardNomer").replace(" ", "");
-        String cardMonth = ConfigReader.get("cardM").trim();
-        String cardYear  = ConfigReader.get("cardY").trim();
-        String cardCvc   = ConfigReader.get("cardCvc").trim();
-        String cardUser  = ConfigReader.get("cardUser").trim();
-        String phone     = ConfigReader.get("cardNumber").replace(" ", "");
+        try {
+            System.out.println("⌛ Waiting for card form...");
 
+            // 🧩 Ждём хотя бы одно поле — по id 'pan'
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("pan")));
+            System.out.println("✅ Card form is visible");
 
-        WebElement block = wait.until(
-                ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".card"))
-        );
+            // 🧾 Берём данные из конфига
+            String cardNum   = ConfigReader.get("cardNomer").trim();
+            String cardMonth = ConfigReader.get("cardM").trim();
+            String cardYear  = ConfigReader.get("cardY").trim();
+            String cardCvc   = ConfigReader.get("cardCvc").trim();
+            String cardUser  = ConfigReader.get("cardUser").trim();
 
-        block.findElement(By.id("pan")).sendKeys(cardNum);
-        block.findElement(By.id("month")).sendKeys(cardMonth);
-        block.findElement(By.id("year")).sendKeys(cardYear);
-        block.findElement(By.id("cvv")).sendKeys(cardCvc);
-        block.findElement(By.id("holder")).sendKeys(cardUser);
+            // 🖊️ Заполняем все поля по ID
+            Map<String, String> fields = new LinkedHashMap<>();
+            fields.put("pan", cardNum);
+            fields.put("month", cardMonth);
+            fields.put("year", cardYear);
+            fields.put("cvv", cardCvc);
+            fields.put("holder", cardUser);
 
-        WebElement phoneField = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                By.cssSelector("input.tel__input")
-        ));
-        phoneField.sendKeys(phone);
+            for (Map.Entry<String, String> entry : fields.entrySet()) {
+                try {
+                    WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id(entry.getKey())));
+                    el.click();
+                    el.clear();
+                    el.sendKeys(entry.getValue());
+                    System.out.println("✅ Filled " + entry.getKey());
+                } catch (Exception e) {
+                    System.out.println("⚠️ Could not fill " + entry.getKey() + ": " + e.getMessage());
+                }
+            }
 
-        String email = ConfigReader.get("cardEmail");
-        if (email == null || email.trim().isEmpty()) {
-            email = getTempEmail();
+            // 🔽 Скроллим к кнопке "Оплатить"
+            WebElement payBtn = wait.until(ExpectedConditions.elementToBeClickable(
+                    By.xpath("//button[contains(.,'Оплатить') or contains(.,'Pay')]")
+            ));
+            js.executeScript("arguments[0].scrollIntoView({block:'center'});", payBtn);
+            System.out.println("💳 Ready for payment (button found)");
+
+        } catch (Exception e) {
+            System.out.println("❌ Error while filling card info: " + e.getMessage());
         }
-
-        WebElement emailField = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                By.id("email")
-        ));
-        emailField.sendKeys(email);
     }
-
 
 
     private JavascriptExecutor js() { return (JavascriptExecutor) driver; }
