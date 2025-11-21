@@ -14,7 +14,6 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import java.time.Duration;
 import java.util.*;
 import java.util.NoSuchElementException;
-import java.util.function.Function;
 
 public class CatalogTest {
 
@@ -38,12 +37,13 @@ public class CatalogTest {
     }
 
     @Test
-    void catalogFlow() {
+    void catalogFlow() throws InterruptedException {
         firstPageLanding();
         openCatalog();
         awaitOrderPage();
         writeInfo();
         acceptModal();
+        switchPaymentPage();
         cardInfo();
         System.out.println("Тест успешно прошел ✅");
     }
@@ -263,9 +263,8 @@ public class CatalogTest {
         JavascriptExecutor js = (JavascriptExecutor) driver;
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
-        System.out.println("📧 Opening Mail.tm temporary inbox...");
+        System.out.println("Opening Mail.tm temporary inbox...");
 
-        // 1️⃣ Открываем Mail.tm в новой вкладке
         js.executeScript("window.open('https://mail.tm/en/', '_blank');");
         List<String> tabs = new ArrayList<>(driver.getWindowHandles());
         driver.switchTo().window(tabs.get(tabs.size() - 1));
@@ -275,11 +274,10 @@ public class CatalogTest {
         ));
 
         String email = emailField.getAttribute("value");
-        System.out.println("✅ Got temp email: " + email);
+        System.out.println("Got temp email: " + email);
 
-        // ❗ Вкладку не закрываем, остаёмся в Mail.tm
-        // — потом можно будет туда вернуться и проверить письмо
-        driver.switchTo().window(tabs.get(0)); // возвращаемся в тест
+
+        driver.switchTo().window(tabs.get(0));
 
         return email;
     }
@@ -298,14 +296,14 @@ public class CatalogTest {
                                 "return panes.length ? panes.at(-1).querySelector('.mat-mdc-dialog-surface') : null;"
                 );
                 if (el != null) {
-                    System.out.println("🟢 Modal detected after " +
+                    System.out.println("Modal detected after " +
                             ((System.currentTimeMillis() - startTime) / 1000) + "s");
                 }
                 return el;
             });
 
             if (modal == null) {
-                System.out.println("⚠️ Modal not found — skipping acceptModal()");
+                System.out.println("Modal not found — skipping acceptModal()");
                 return;
             }
 
@@ -332,67 +330,90 @@ public class CatalogTest {
                 js.executeScript("arguments[0].click();", cont);
             }
 
+            Set<String> allWindowHandles = driver.getWindowHandles();
+            List<String> tabs = new ArrayList<>(allWindowHandles);
+            driver.switchTo().window(tabs.get(2));
+
             wait.until(d -> (Boolean) js.executeScript(
                     "return !document.querySelector('div.cdk-overlay-pane .mat-mdc-dialog-surface');"
             ));
-            System.out.println("✅ Modal closed successfully");
+            System.out.println(" Modal closed successfully");
 
         } catch (TimeoutException e) {
-            System.out.println("⚠️ Modal did not appear within 5 minutes — skipping");
+            System.out.println("️ Modal did not appear within 5 minutes — skipping");
         } catch (Exception e) {
-            System.out.println("❌ Error during acceptModal: " + e.getMessage());
+            System.out.println(" Error during acceptModal: " + e.getMessage());
         }
     }
 
-    private void cardInfo() {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(60));
-        JavascriptExecutor js = (JavascriptExecutor) driver;
 
-        try {
-            System.out.println("⌛ Waiting for card form...");
 
-            // 🧩 Ждём хотя бы одно поле — по id 'pan'
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("pan")));
-            System.out.println("✅ Card form is visible");
+    private void cardInfo() throws InterruptedException {
+        System.out.println("cardInfo() is called " + driver.getCurrentUrl());
 
-            // 🧾 Берём данные из конфига
-            String cardNum   = ConfigReader.get("cardNomer").trim();
-            String cardMonth = ConfigReader.get("cardM").trim();
-            String cardYear  = ConfigReader.get("cardY").trim();
-            String cardCvc   = ConfigReader.get("cardCvc").trim();
-            String cardUser  = ConfigReader.get("cardUser").trim();
+        slowType(By.id("pan"),    ConfigReader.get("cardNomer").trim());
+        slowType(By.id("month"),  ConfigReader.get("cardM").trim());
+        slowType(By.id("year"),   ConfigReader.get("cardY").trim());
+        slowType(By.id("cvv"),    ConfigReader.get("cardCvc").trim());
+        slowType(By.id("holder"), ConfigReader.get("cardUser").trim());
 
-            // 🖊️ Заполняем все поля по ID
-            Map<String, String> fields = new LinkedHashMap<>();
-            fields.put("pan", cardNum);
-            fields.put("month", cardMonth);
-            fields.put("year", cardYear);
-            fields.put("cvv", cardCvc);
-            fields.put("holder", cardUser);
+        System.out.println("All fields typed!");
 
-            for (Map.Entry<String, String> entry : fields.entrySet()) {
-                try {
-                    WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id(entry.getKey())));
-                    el.click();
-                    el.clear();
-                    el.sendKeys(entry.getValue());
-                    System.out.println("✅ Filled " + entry.getKey());
-                } catch (Exception e) {
-                    System.out.println("⚠️ Could not fill " + entry.getKey() + ": " + e.getMessage());
-                }
+        WebElement clickPayBtn = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("sticky__button")));
+        clickPayBtn.click();
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        wait.until(d -> d.getWindowHandles().size() > 2);
+
+        for (String handle : driver.getWindowHandles()) {
+
+            driver.switchTo().window(handle);
+
+            if (driver.getCurrentUrl().contains("mail.tm")) {
+                System.out.println("Switched to mail page");
+                return;
             }
+        }
 
-            // 🔽 Скроллим к кнопке "Оплатить"
-            WebElement payBtn = wait.until(ExpectedConditions.elementToBeClickable(
-                    By.xpath("//button[contains(.,'Оплатить') or contains(.,'Pay')]")
-            ));
-            js.executeScript("arguments[0].scrollIntoView({block:'center'});", payBtn);
-            System.out.println("💳 Ready for payment (button found)");
+        throw new IllegalStateException("Mail page was NOT opened!");
 
-        } catch (Exception e) {
-            System.out.println("❌ Error while filling card info: " + e.getMessage());
+    }
+
+
+    private void slowType(By locator, String value) throws InterruptedException {
+        WebElement field = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+        field.click();
+        Thread.sleep(200);
+
+        for (char c : value.toCharArray()) {
+            field.sendKeys(String.valueOf(c));
+            Thread.sleep(120);
         }
     }
+
+
+
+
+
+
+
+    private void switchPaymentPage(){
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        wait.until(d -> d.getWindowHandles().size() > 2);
+
+        for (String handle : driver.getWindowHandles()) {
+
+            driver.switchTo().window(handle);  // ← ВАЖНО! Ты ЭТО пропустил
+
+            if (driver.getCurrentUrl().contains("freedompay")) {
+                System.out.println("Switched to payment page");
+                return;
+            }
+        }
+
+        throw new IllegalStateException("Payment page was NOT opened!");
+    }
+
 
 
     private JavascriptExecutor js() { return (JavascriptExecutor) driver; }
