@@ -7,9 +7,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.devtools.DevTools;
+import org.openqa.selenium.devtools.HasDevTools;
+import org.openqa.selenium.devtools.v123.network.Network;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.Select;
+
 
 import java.time.Duration;
 import java.util.*;
@@ -19,6 +24,10 @@ public class CatalogTest {
 
     private WebDriver driver;
     private WebDriverWait wait;
+    private String tempEmail;
+    private String purchasedStreamId;
+    private DevTools devTools;
+
 
     @BeforeEach
     void setUp() {
@@ -27,6 +36,8 @@ public class CatalogTest {
         wait   = new WebDriverWait(driver, Duration.ofSeconds(20));
         driver.manage().window().maximize();
         driver.get(ConfigReader.get("base.url") + "/landing");
+
+
     }
 
     @AfterEach
@@ -36,8 +47,9 @@ public class CatalogTest {
         }
     }
 
+
     @Test
-    void catalogFlow() throws InterruptedException {
+    public void catalogFlow() throws InterruptedException {
         firstPageLanding();
         openCatalog();
         awaitOrderPage();
@@ -45,8 +57,16 @@ public class CatalogTest {
         acceptModal();
         switchPaymentPage();
         cardInfo();
-        System.out.println("Тест успешно прошел ✅");
+        System.out.println("Тест 1 успешно прошел");
+        switchEmailPage();
+        waitEmailAndLink();
+        switchRegistrationPage();
+        registrationBlock();
+        System.out.println("Тест 2 успешно прошел");
+        signINblock();
+        studentMainPage();
     }
+
 
     private void firstPageLanding() {
         By pricingSection = By.id("pricing-section");
@@ -79,6 +99,8 @@ public class CatalogTest {
         }
     }
 
+    //Бұл жерде сатылымда тұрған пәндердің модалкасын ашады және бірінші пәнді таңдайды
+
     private void openCatalog() {
         By modalBy   = By.className("purchase-modal-content");
         By subjectBy = By.className("subject-item");
@@ -105,58 +127,6 @@ public class CatalogTest {
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("app-order .order-form")));
     }
 
-//    private void writeInfo() {
-//        By formBy = By.cssSelector("app-order .order-form");
-//
-//        WebElement form = wait.until(ExpectedConditions.visibilityOfElementLocated(formBy));
-//        WebElement finalForm = form;
-//        wait.until(d -> finalForm.findElements(By.cssSelector("input:not([type='hidden'])"))
-//                .stream().anyMatch(WebElement::isDisplayed));
-//
-//        WebElement firstName = form.findElement(
-//                By.xpath(".//label[contains(normalize-space(.),'Атыңыз') or contains(normalize-space(.),'Имя')]" +
-//                        "/following::*[self::input or self::textarea][1]")
-//        );
-//        typeSafe(firstName, ConfigReader.get("TestName"));
-//
-//        WebElement lastName = form.findElement(
-//                By.xpath(".//label[contains(normalize-space(.),'Тегіңіз') or contains(normalize-space(.),'Фамилия') or contains(normalize-space(.),'Тегiнiз')]" +
-//                        "/following::*[self::input or self::textarea][1]")
-//        );
-//        typeSafe(lastName,  ConfigReader.get("TestLastName"));
-//        WebElement number = form.findElement(
-//                By.xpath(".//label[contains(normalize-space(.),'Атыңыз') or contains(normalize-space(.),'Имя')]" +
-//                        "/following::*[self::input or self::textarea][1]")
-//        );
-//        typeSafe(firstName, ConfigReader.get("TestName"));
-//
-//
-//        String email = getTempEmail(); // ← теперь с Mail.tm
-//
-//        WebElement emailInput = null;
-//        List<By> emailLocators = List.of(
-//                By.xpath(".//label[normalize-space()='Email' or contains(.,'Электрондық пошта') or contains(.,'Почта')]" +
-//                        "/following::*[self::input or self::textarea][1]"),
-//                By.xpath(".//input[contains(@placeholder,'Email') or contains(@placeholder,'E-mail')]"),
-//                By.cssSelector("input[name='email'], input[data-testid='email']")
-//        );
-//        for (By by : emailLocators) {
-//            List<WebElement> found = form.findElements(by);
-//            if (!found.isEmpty() && found.get(0).isDisplayed()) { emailInput = found.get(0); break; }
-//        }
-//        if (emailInput == null) throw new NoSuchElementException("Поле email не найдено");
-//        typeSafe(emailInput, email);
-//
-//        WebElement dropdown = wait.until(
-//                ExpectedConditions.elementToBeClickable(By.xpath("//*[contains(text(),'Ваш менеджер')]/following::*[1]"))
-//        );
-//        dropdown.click();
-//
-//        WebElement noManager = wait.until(
-//                ExpectedConditions.elementToBeClickable(By.xpath("//*[normalize-space(text())='Без менеджера']"))
-//        );
-//        noManager.click();
-//    }
     private void writeInfo() {
         By formBy = By.cssSelector("app-order .order-form");
 
@@ -177,8 +147,7 @@ public class CatalogTest {
         );
         typeSafe(lastName,  ConfigReader.get("TestLastName"));
 
-        String email = getTempEmail();
-
+        tempEmail = getTempEmail();
         WebElement phoneInput = null;
         List<By> phoneLocators = List.of(
                 By.xpath(".//label[contains(normalize-space(.),'Телефон')]/following::*[self::input or self::textarea][1]"),
@@ -204,9 +173,9 @@ public class CatalogTest {
             if (!found.isEmpty() && found.get(0).isDisplayed()) { emailInput = found.get(0); break; }
         }
         if (emailInput == null) throw new NoSuchElementException("Поле email не найдено");
-        typeSafe(emailInput, email);
+        typeSafe(emailInput, tempEmail);
         WebElement dropdown = wait.until(
-                ExpectedConditions.elementToBeClickable(By.xpath("//*[contains(text(),'Ваш менеджер')]/following::*[1]"))
+                ExpectedConditions.elementToBeClickable(By.xpath("//*[contains(text(),'Ваш менеджер') or contains(text(),'Сіздің менеджеріңіз')]"))
         );
         dropdown.click();
 
@@ -258,29 +227,32 @@ public class CatalogTest {
         }
     }
 
-    // 🆕 Новый вариант getTempEmail (Mail.tm, без закрытия вкладки)
-    private String getTempEmail() {
+     private String getTempEmail() {
         JavascriptExecutor js = (JavascriptExecutor) driver;
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(30));
 
         System.out.println("Opening Mail.tm temporary inbox...");
 
         js.executeScript("window.open('https://mail.tm/en/', '_blank');");
+
         List<String> tabs = new ArrayList<>(driver.getWindowHandles());
         driver.switchTo().window(tabs.get(tabs.size() - 1));
 
-        WebElement emailField = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                By.cssSelector("input[readonly][type='email'], input#address")
-        ));
+        By emailLocator = By.cssSelector("input[readonly][type='email'], input#address");
+        WebElement emailInput = wait.until(ExpectedConditions.visibilityOfElementLocated(emailLocator));
+        wait.until(driver -> {
+            String val = emailInput.getAttribute("value");
+            return val != null && val.contains("@") && !val.equals("...");
+        });
 
-        String email = emailField.getAttribute("value");
-        System.out.println("Got temp email: " + email);
-
-
+        String email = emailInput.getAttribute("value");
+        System.out.println("Got real temp email: " + email);
         driver.switchTo().window(tabs.get(0));
 
         return email;
     }
+
+
 
     private void acceptModal() {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(300));
@@ -359,25 +331,186 @@ public class CatalogTest {
 
         System.out.println("All fields typed!");
 
-        WebElement clickPayBtn = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("sticky__button")));
+        WebElement clickPayBtn = wait.until(ExpectedConditions.elementToBeClickable(By.className("sticky__button")));
         clickPayBtn.click();
 
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
-        wait.until(d -> d.getWindowHandles().size() > 2);
-
-        for (String handle : driver.getWindowHandles()) {
-
-            driver.switchTo().window(handle);
-
-            if (driver.getCurrentUrl().contains("mail.tm")) {
-                System.out.println("Switched to mail page");
-                return;
-            }
-        }
-
-        throw new IllegalStateException("Mail page was NOT opened!");
 
     }
+
+
+
+    private void waitEmailAndLink() throws InterruptedException {
+        System.out.println("waitEmailAndLink() is called " + driver.getCurrentUrl());
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(40));
+
+        driver.navigate().refresh();
+
+        WebElement linksBlock = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("a[href*='/view/']")));
+        linksBlock.click();
+
+        // 1. Ждём пока откроется письмо (/view/)
+        wait.until(ExpectedConditions.urlContains("/view/"));
+        System.out.println("Email page opened: " + driver.getCurrentUrl());
+
+        // 2. Ждём iframe с письмом
+        WebElement mailIframe = wait.until(
+                ExpectedConditions.presenceOfElementLocated(
+                        By.cssSelector("iframe.w-full")
+                )
+        );
+
+        // 3. Переходим в iframe
+        driver.switchTo().frame(mailIframe);
+        System.out.println("Switched into mail iframe");
+
+        WebElement registerBtn = wait.until(
+                ExpectedConditions.presenceOfElementLocated(
+                        By.xpath("//a[normalize-space()='Тіркелу']")
+                )
+        );
+
+            // 4. Скроллим к кнопке
+        ((JavascriptExecutor) driver).executeScript(
+                "arguments[0].scrollIntoView({block:'center'});",
+                registerBtn
+        );
+
+        // 5. JS-клик (обходит sticky footer)
+        ((JavascriptExecutor) driver).executeScript(
+                "arguments[0].click();",
+                registerBtn
+        );
+
+        System.out.println("✅ Кнопка 'Тіркелу' нажата через JS");
+        driver.switchTo().defaultContent();
+
+
+    }
+
+    private void registrationBlock() {
+        System.out.println("registrationBlock() is called " + driver.getCurrentUrl());
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+
+
+        //Первый страница
+
+        WebElement inputPass = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//input[@placeholder='Пароль ойлап табыңыз']")));
+        inputPass.sendKeys(ConfigReader.get("password").trim());
+
+        WebElement inputPass2 = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//input[@placeholder='Пароль қайталаңыз']")));
+        inputPass2.sendKeys(ConfigReader.get("password").trim());
+
+
+        WebElement nextBtn = wait.until(
+                ExpectedConditions.presenceOfElementLocated(
+                        By.xpath("//button[normalize-space()='Келесі қадам']")
+                )
+        );
+
+        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", nextBtn);
+
+
+        //Втрой страница
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(30));
+        WebElement iin = driver.findElement(By.xpath("//input[@placeholder='ИИН енгізіңіз']"));
+        WebElement phone = driver.findElement(By.xpath("//input[@placeholder='Ата-ана телефон нөмірін енгізіңіз']"));
+        WebElement email = driver.findElement(By.xpath("//input[@placeholder='Ата-ана email-ын енгізіңіз']"));
+
+        setAngularInput(iin, "050313500211");
+        setAngularInput(phone, "7771122335");
+        setAngularInput(email, "tester@gmail.com");
+
+        // Ждём пока кнопка станет активной
+
+        WebElement nextBtn2 = wait.until(
+                ExpectedConditions.presenceOfElementLocated(
+                        By.xpath("//button[normalize-space()='Келесі қадам']")
+                )
+        );
+
+        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", nextBtn2);
+
+        System.out.println("✅ Registration step 2 completed");
+
+
+//
+
+
+        //Үшінші страница
+        // Облыс / Қала — АЛМАТЫ
+        selectByLabel("Облыс/Қала",
+                "7ecec4a3-4a94-4b50-a097-2fa24a6e399d"
+        );
+
+        // Мектеп
+        WebElement schoolInput = wait.until(ExpectedConditions.elementToBeClickable(
+                By.xpath("//input[@placeholder='Мектепті таңдаңыз']")
+        ));
+        schoolInput.sendKeys("ЙЦУ");
+
+        // Оқу сыныбы
+        selectByLabel("Оқу сыныбы", "9");
+
+        // ҰБТ 1 пән — Математика
+        selectByLabel("ҰБТ-дағы бірінші пән",
+                "11c81c50-c914-4030-8083-e5d4bfe6e6d0"
+        );
+
+        // ҰБТ 2 пән — Физика
+        selectByLabel("ҰБТ-дағы екінші пән",
+                "0b14d605-8adb-436d-8953-e2472d4ff048"
+        );
+
+        // Мақсат
+        selectByLabel("Мақсат", "IMPROVE_WEAK_AREAS");
+        WebElement instaInput = wait.until(ExpectedConditions.elementToBeClickable(
+                By.xpath("//input[@placeholder='Instagram көрсетіңіз']")
+        ));
+        instaInput.sendKeys("testinsta");
+
+        // Завершение
+        WebElement lastBtn = wait.until(
+                ExpectedConditions.presenceOfElementLocated(
+                        By.xpath("//button[normalize-space()='Оқуды бастау']")
+                )
+        );
+
+        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", lastBtn);
+
+        System.out.println("✅ Registration completed successfully");
+
+
+    }
+
+    //
+    private void selectByLabel(String labelText, String value) {
+
+        By selectLocator = By.xpath(
+                "//label[contains(text(),'" + labelText + "')]/ancestor::div[contains(@class,'form-field')]//select"
+        );
+
+        WebElement selectElement = wait.until(
+                ExpectedConditions.elementToBeClickable(selectLocator)
+        );
+
+        Select select = new Select(selectElement);
+        select.selectByValue(value);
+    }
+
+
+
+    private void setAngularInput(WebElement input, String value) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        js.executeScript(
+                "arguments[0].focus();" +
+                        "arguments[0].value = arguments[1];" +
+                        "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));" +
+                        "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));" +
+                        "arguments[0].blur();",
+                input, value
+        );
+    }
+
 
 
     private void slowType(By locator, String value) throws InterruptedException {
@@ -390,20 +523,13 @@ public class CatalogTest {
             Thread.sleep(120);
         }
     }
-
-
-
-
-
-
-
     private void switchPaymentPage(){
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
         wait.until(d -> d.getWindowHandles().size() > 2);
 
         for (String handle : driver.getWindowHandles()) {
 
-            driver.switchTo().window(handle);  // ← ВАЖНО! Ты ЭТО пропустил
+            driver.switchTo().window(handle);
 
             if (driver.getCurrentUrl().contains("freedompay")) {
                 System.out.println("Switched to payment page");
@@ -412,6 +538,80 @@ public class CatalogTest {
         }
 
         throw new IllegalStateException("Payment page was NOT opened!");
+    }
+    private void switchEmailPage(){
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        wait.until(d -> d.getWindowHandles().size() > 2);
+
+        for (String handle : driver.getWindowHandles()) {
+
+            driver.switchTo().window(handle);
+
+            if (driver.getCurrentUrl().contains("mail.tm")) {
+                System.out.println("Switched to payment page");
+                return;
+            }
+        }
+
+        throw new IllegalStateException("Payment page was NOT opened!");
+    }
+
+    private void switchRegistrationPage(){
+            String currentWindow = driver.getWindowHandle();
+
+            for (String handle : driver.getWindowHandles()) {
+                driver.switchTo().window(handle);
+
+                String url = driver.getCurrentUrl();
+                System.out.println("Checking tab URL: " + url);
+
+                if (url.contains("shorturl")) {
+                    System.out.println("✅ Switched to registration tab");
+                    return;
+                }
+            }
+
+            // если не нашли — вернёмся назад
+            driver.switchTo().window(currentWindow);
+            throw new IllegalStateException("❌ Registration tab not found");
+
+    }
+
+
+    private void signINblock() {
+
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h1[text() ='Авторизация']")));
+
+        if (tempEmail == null) {
+            throw new IllegalStateException("tempEmail is NULL. Email was not generated earlier!");
+        }
+
+        WebElement emailInput = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(
+                        By.xpath("//input[@type='email' or contains(@placeholder,'Электрондық пошта')]")
+                )
+        );
+        emailInput.sendKeys(tempEmail);
+
+        WebElement passInput = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(
+                        By.xpath("//input[@type='password' or contains(@placeholder,'Парольді еңгізіңіз')]")
+                )
+        );
+        passInput.sendKeys(ConfigReader.get("password"));
+
+        WebElement loginBtn = wait.until(
+                ExpectedConditions.elementToBeClickable(
+                        By.xpath("//button[contains(text(),'Кіру') or contains(text(),'Войти')]")
+                )
+        );
+        loginBtn.click();
+    }
+    private void studentMainPage() {
+        System.out.println(driver.getCurrentUrl());
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h2[text() ='Менің курстарым']")));
+
+
     }
 
 
